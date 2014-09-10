@@ -1,22 +1,33 @@
 package main
 
 import (
+	"fmt"
 	"flag"
 	"log"
 	"os"
+	"time"
 
 	"github.com/xconstruct/stark/core"
 	slog "github.com/xconstruct/stark/log"
 	"github.com/xconstruct/stark/proto"
+	"github.com/xconstruct/stark-desktop/assets"
 	"gopkg.in/qml.v1"
 )
 
 var verbose = flag.Bool("v", false, "verbose debug output")
 
+type History struct {
+	Type string
+	Time time.Time
+	Text string
+	Message proto.Message
+}
+
 type App struct {
 	ctx     *core.Context
 	client  *proto.Client
-	history string
+	history []History
+	historyText string
 	window  *qml.Window
 }
 
@@ -43,7 +54,7 @@ func (app *App) runGui() error {
 		os.Exit(0)
 	})
 
-	root, err := engine.LoadString("qml.go", qmlMain)
+	root, err := engine.LoadString("qml.go", assets.QmlMainWindow)
 	if err != nil {
 		return err
 	}
@@ -68,6 +79,11 @@ func (app *App) initProto() {
 	app.client = proto.NewClient("desktop-"+proto.GenerateId(), app.ctx.Proto)
 
 	app.client.Subscribe("", "self", app.HandleIncoming)
+	app.AddHistory(History{
+		Type: "status",
+		Time: time.Now(),
+		Text: "Connected",
+	})
 }
 
 func (app *App) HandleIncoming(msg proto.Message) {
@@ -75,16 +91,44 @@ func (app *App) HandleIncoming(msg proto.Message) {
 	if text == "" {
 		text = msg.Action + " from " + msg.Source
 	}
-	app.history += text + "<br>"
-	app.window.Call("setHistory", app.history)
+	htype := "in"
+	if msg.Source == "" {
+		htype = "out"
+	}
+
+	app.AddHistory(History{
+		Type: htype,
+		Time: time.Now(),
+		Text: text,
+		Message: msg,
+	})
+}
+
+func (app *App) AddHistory(h History) {
+	app.history = append(app.history, h)
+
+	hist := ""
+	for _, h := range app.history {
+		style := `<span style="color: #0000ff">%s</span> %s<br>`
+		switch h.Type {
+		case "out":
+			style = `<span style="color: #0000ff">%s</span> <b>%s</b><br>`
+		case "status":
+			style = `<span style="color: #0000ff">%s</span> <i>%s</i><br>`
+		}
+		hist += fmt.Sprintf(style, h.Time.Format("15:04:05"), h.Text)
+	}
+	app.window.Call("setHistory", hist)
 }
 
 func (app *App) PublishText(text string) {
 	app.ctx.Log.Debugln("publishing:", text)
-	app.client.Publish(proto.Message{
+	msg := proto.Message{
 		Action: "natural/handle",
 		Payload: map[string]interface{}{
 			"text": text,
 		},
-	})
+	}
+	app.client.Publish(msg)
+	app.HandleIncoming(msg)
 }

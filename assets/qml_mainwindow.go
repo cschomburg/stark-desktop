@@ -1,6 +1,6 @@
-package main
+package assets
 
-var qmlMain = `
+const QmlMainWindow = `
 import QtQuick 2.2
 import QtQuick.Controls 1.2
 import QtQuick.Layouts 1.0
@@ -10,6 +10,8 @@ ApplicationWindow {
 	title: "stark"
 	minimumWidth: 400
 	minimumHeight: 300
+	width: 600
+	height: 400
 
 	signal publish(string text)
 
@@ -33,7 +35,9 @@ ApplicationWindow {
 				id: replyInput
 				Layout.fillWidth: true
 				Layout.minimumHeight: 30
-				text: "meow"
+				text: ""
+				placeholderText: "Talk to me ..."
+				focus: true
 			}
 
 			Button {
